@@ -8,6 +8,11 @@ typedef struct {
     int width, height;
     HDC screenShotdc;
     HBITMAP canvas;
+
+    //TODO: save current state of the zoomed window
+    int zoomedx;
+    int zoomedy;
+    
 } ZoomerState;
 
 //global variables
@@ -24,10 +29,6 @@ void removeZoomer();
 
 int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hprevinst, LPSTR cmdshow, int ncmdshow){
     SetProcessDPIAware();
-    // initFullScreenSize();
-    // if (globalScreenShotdc == NULL){
-    //     globalScreenShotdc = createScreenShotDc();
-    // }
     initZoomer();
 
     WNDCLASSEX wc = createWindowClass(hinst);
@@ -73,11 +74,37 @@ LRESULT CALLBACK eventHandler(
             break;
         case WM_PAINT:
             current_dc = BeginPaint(hwnd, &ps);
-            BitBlt(
+            // BitBlt(
+            //     current_dc,
+            //     0,0,Zoomer.width,Zoomer.height,
+            //     Zoomer.screenShotdc,0,0,SRCCOPY
+            // );
+
+            //scaled up or scaled down ratios and
+
+            // ------------------ 1920
+            // |  ------------  |   1
+            // |  |           | |   0
+            // |  |           | |   8
+            // |  ------------  |   0
+            // ------------------
+            POINT cursor;
+            GetCursorPos(&cursor);
+            int srcx,srcy, zoomOffset = 500;
+            srcx = 500;
+            srcy =  Zoomer.height * ((float)srcx/(float) Zoomer.width);
+            printf("%d %d \n", srcx, srcy);
+            StretchBlt(
                 current_dc,
-                0,0,Zoomer.width,Zoomer.height,
-                Zoomer.screenShotdc,0,0,SRCCOPY
+                0,0,
+                Zoomer.width, Zoomer.height,
+                Zoomer.screenShotdc,
+                cursor.x, cursor.y,
+                cursor.x + srcx,
+                cursor.y + srcy,
+                SRCCOPY
             );
+
             EndPaint(hwnd, &ps);
             break;
         case WM_DESTROY:
