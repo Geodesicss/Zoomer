@@ -1,33 +1,35 @@
-// #define _WIN32_WINNT 0x0600  // is it necessary to specify the windows version?
-// #define UNICODE
-// #define _UNICODE
-
 #include<windows.h>
 #include<stdio.h>
 #include<stdbool.h>
 #include<stdint.h>
 #include<tchar.h>
 
+typedef struct {
+    int width, height;
+    HDC screenShotdc;
+    HBITMAP canvas;
+} ZoomerState;
+
 //global variables
-int WIDTH, HEIGHT;
-const TCHAR classname[] = TEXT("name");
-HDC globalScreenShotdc = NULL;
-HBITMAP globalCanvas;
+ZoomerState Zoomer;
+const TCHAR classname[] = TEXT("Zoomer APP");
 
 //function signatures
-void initFullScreenSize();
-HDC displayScreenShot();
+HDC createScreenShotDc();
 LRESULT CALLBACK eventHandler(HWND, UINT, WPARAM, LPARAM);
 WNDCLASSEX createWindowClass(HINSTANCE);
 HWND createWindowFullscreenPopup(HINSTANCE);
+void initZoomer();
+void removeZoomer();
 
 int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hprevinst, LPSTR cmdshow, int ncmdshow){
     SetProcessDPIAware();
-    initFullScreenSize();
-    if (globalScreenShotdc == NULL){
-        globalScreenShotdc = displayScreenShot();
-    }
-    
+    // initFullScreenSize();
+    // if (globalScreenShotdc == NULL){
+    //     globalScreenShotdc = createScreenShotDc();
+    // }
+    initZoomer();
+
     WNDCLASSEX wc = createWindowClass(hinst);
     RegisterClassEx(&wc);
 
@@ -42,12 +44,19 @@ int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hprevinst, LPSTR cmdshow, int ncmd
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-
-    // delete resource allocated for global screensot DC 
-    DeleteDC(globalScreenShotdc);
-    DeleteObject(globalCanvas);
+    removeZoomer();
     UnregisterClass(classname, hinst);
     return msg.wParam;
+}
+void initZoomer(){
+    Zoomer.width = GetSystemMetrics(SM_CXSCREEN);
+    Zoomer.height = GetSystemMetrics(SM_CYSCREEN);
+    Zoomer.screenShotdc = createScreenShotDc();
+}
+
+void removeZoomer(){
+    DeleteDC(Zoomer.screenShotdc);
+    DeleteObject(Zoomer.canvas);
 }
 
 LRESULT CALLBACK eventHandler(
@@ -66,49 +75,45 @@ LRESULT CALLBACK eventHandler(
             current_dc = BeginPaint(hwnd, &ps);
             BitBlt(
                 current_dc,
-                0,0,WIDTH,HEIGHT,
-                globalScreenShotdc,0,0,SRCCOPY
+                0,0,Zoomer.width,Zoomer.height,
+                Zoomer.screenShotdc,0,0,SRCCOPY
             );
             EndPaint(hwnd, &ps);
-            DeleteDC(current_dc);
             break;
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
     }
-    DeleteDC(current_dc);
     return DefWindowProc(hwnd, wm, wparam, lparam);
 }
 
-HDC displayScreenShot(){
+HDC createScreenShotDc(){
     HDC fullscreensrc = GetDC(NULL);
     HDC destdc = CreateCompatibleDC(NULL);
 
     BITMAPINFO bitmapinfo = {
         .bmiHeader.biSize = sizeof(BITMAPINFOHEADER),
-        .bmiHeader.biWidth = WIDTH,
-        .bmiHeader.biHeight = HEIGHT,
+        .bmiHeader.biWidth = Zoomer.width,
+        .bmiHeader.biHeight = Zoomer.height,
         .bmiHeader.biPlanes = 1,
         .bmiHeader.biBitCount = 32,
         .bmiHeader.biCompression = BI_RGB,
     };
 
     void *ppvbits = NULL;
-    globalCanvas = CreateDIBSection(destdc, &bitmapinfo,DIB_RGB_COLORS,&ppvbits,NULL, 0);
+    Zoomer.canvas = CreateDIBSection(
+                        destdc, &bitmapinfo,
+                        DIB_RGB_COLORS,&ppvbits,NULL, 0
+                    );
 
-    SelectObject(destdc, globalCanvas);
+    SelectObject(destdc, Zoomer.canvas);
 
     BitBlt(
-        destdc,0,0,WIDTH,HEIGHT,
+        destdc,0,0,Zoomer.width,Zoomer.height,
         fullscreensrc,0,0,SRCCOPY
     );
     ReleaseDC(NULL, fullscreensrc);
     return destdc;
-}
-
-void initFullScreenSize(){
-    WIDTH = GetSystemMetrics(SM_CXSCREEN);
-    HEIGHT = GetSystemMetrics(SM_CYSCREEN);
 }
 
 WNDCLASSEX createWindowClass(HINSTANCE hinst){
@@ -134,7 +139,8 @@ HWND createWindowFullscreenPopup(HINSTANCE hinst){
         classname,
         classname,
         WS_POPUP | WS_VISIBLE,
-        0,0,WIDTH,HEIGHT,
+        0,0,Zoomer.width,
+        Zoomer.height,
         NULL, NULL, hinst, NULL
     );
 }
