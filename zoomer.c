@@ -72,10 +72,7 @@ int WINAPI WinMain(HINSTANCE hinst,
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-
-    /*
-        TODO: use PeakMessage();
-    */
+    
     removeZoomer();
     UnregisterClass(classname, hinst);
     return msg.wParam;
@@ -89,6 +86,8 @@ void initZoomer(){
     Zoomer.width = GetSystemMetrics(SM_CXSCREEN);
     Zoomer.height = GetSystemMetrics(SM_CYSCREEN);
     Zoomer.screenShotdc = createScreenShotDc();
+
+    calculateZoomerZoomSize();
 }
 
 void removeZoomer(){
@@ -182,6 +181,9 @@ LRESULT CALLBACK eventHandler(
     HDC current_dc;
     int wheelData;
     int dx,dy, currx, curry;
+
+    int oldZoomWidth, oldZoomHeight;
+    float percentX, percentY;
     switch(wm){
         case WM_LBUTTONDOWN:
             mouseDrag.isDrag = true;
@@ -220,12 +222,23 @@ LRESULT CALLBACK eventHandler(
         case WM_MOUSEWHEEL:
             wheelData = GET_WHEEL_DELTA_WPARAM(wparam);
             
+            oldZoomWidth = Zoomer.zoomWidth;
+            oldZoomHeight = Zoomer.zoomHeight;
+
             float addToZoomerScale = (wheelData < 0 ? -0.1 : 0.1);   
             Zoomer.scale += addToZoomerScale;
-            Zoomer.cursorOrDefault = ZOOMER_CURSOR;
 
-            Zoomer.posx = Zoomer.cursor.x - Zoomer.zoomWidth /2;
-            Zoomer.posy = Zoomer.cursor.y - Zoomer.zoomHeight/2;
+            calculateZoomerZoomSize();
+
+            POINT cursor;
+            GetCursorPos(&cursor); 
+            percentX = (float)cursor.x / (float)Zoomer.width;
+            percentY = (float)cursor.y / (float) Zoomer.height;
+
+            Zoomer.posx += (int)(percentX * (oldZoomWidth - Zoomer.zoomWidth));
+            Zoomer.posy += (int)(percentY * (oldZoomHeight - Zoomer.zoomHeight));
+            // Zoomer.posx = Zoomer.cursor.x - Zoomer.zoomWidth /2;
+            // Zoomer.posy = Zoomer.cursor.y - Zoomer.zoomHeight/2;
 
             InvalidateRect(hwnd,NULL,false);
             
@@ -233,8 +246,8 @@ LRESULT CALLBACK eventHandler(
         case WM_PAINT:
             current_dc = BeginPaint(hwnd, &ps);
             
-            updateZoomerCursor();
-            calculateZoomerZoomSize();
+            // updateZoomerCursor();
+            // calculateZoomerZoomSize();
 
             ZoomStretchDc(current_dc);
 
