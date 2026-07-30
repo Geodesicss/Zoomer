@@ -7,17 +7,16 @@
 typedef struct {
     int width, height;
     HDC screenShotdc;
+    HDC blankDc;
     HBITMAP canvas;
-
-    //TODO: save current state of the zoomed window
-    int zoomedx;
-    int zoomedy;
-    
+    HBITMAP blankCanvas;
+    float scale;
 } ZoomerState;
 
 //global variables
 ZoomerState Zoomer;
 const TCHAR classname[] = TEXT("Zoomer APP");
+HDC BLANKDC;
 
 //function signatures
 HDC createScreenShotDc();
@@ -26,10 +25,12 @@ WNDCLASSEX createWindowClass(HINSTANCE);
 HWND createWindowFullscreenPopup(HINSTANCE);
 void initZoomer();
 void removeZoomer();
+void createBlankDc();
 
 int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hprevinst, LPSTR cmdshow, int ncmdshow){
     SetProcessDPIAware();
     initZoomer();
+    createBlankDc();
 
     WNDCLASSEX wc = createWindowClass(hinst);
     RegisterClassEx(&wc);
@@ -50,6 +51,7 @@ int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hprevinst, LPSTR cmdshow, int ncmd
     return msg.wParam;
 }
 void initZoomer(){
+    Zoomer.scale = 1.0f;
     Zoomer.width = GetSystemMetrics(SM_CXSCREEN);
     Zoomer.height = GetSystemMetrics(SM_CYSCREEN);
     Zoomer.screenShotdc = createScreenShotDc();
@@ -58,6 +60,9 @@ void initZoomer(){
 void removeZoomer(){
     DeleteDC(Zoomer.screenShotdc);
     DeleteObject(Zoomer.canvas);
+
+    DeleteDC(Zoomer.blankDc);
+    DeleteObject(Zoomer.blankCanvas);
 }
 
 LRESULT CALLBACK eventHandler(
@@ -65,6 +70,7 @@ LRESULT CALLBACK eventHandler(
 ) {
     PAINTSTRUCT ps;
     HDC current_dc;
+    int wheelData;
     switch(wm){
         case WM_KEYDOWN:
             if( wparam == VK_ESCAPE ){
@@ -72,39 +78,34 @@ LRESULT CALLBACK eventHandler(
                 return 0;
             }
             break;
+        case WM_MOUSEWHEEL:
+            wheelData = GET_WHEEL_DELTA_WPARAM(wparam);
+            float addToZoomerScale = (wheelData < 0 ? -0.1 : 0.1);   
+            Zoomer.scale += addToZoomerScale;
+            InvalidateRect(hwnd,NULL,false);
+            break;
         case WM_PAINT:
             current_dc = BeginPaint(hwnd, &ps);
-            // BitBlt(
-            //     current_dc,
-            //     0,0,Zoomer.width,Zoomer.height,
-            //     Zoomer.screenShotdc,0,0,SRCCOPY
-            // );
-
-            //scaled up or scaled down ratios and
-
-            // ------------------ 1920
-            // |  ------------  |   1
-            // |  |           | |   0
-            // |  |           | |   8
-            // |  ------------  |   0
-            // ------------------
             POINT cursor;
             GetCursorPos(&cursor);
-            int srcx,srcy, zoomOffset = 500;
-            srcx = 500;
-            srcy =  Zoomer.height * ((float)srcx/(float) Zoomer.width);
-            printf("%d %d \n", srcx, srcy);
+            
+            int srcx = (float)Zoomer.width / Zoomer.scale;
+            int srcy =  Zoomer.height * ((float)srcx/(float) Zoomer.width);
+            BitBlt(
+                Zoomer.blankDc, 0,0,Zoomer.width, Zoomer.height,
+                NULL,0, 0,BLACKNESS
+            );  
             StretchBlt(
-                current_dc,
-                0,0,
-                Zoomer.width, Zoomer.height,
+                Zoomer.blankDc,
+                0,0, Zoomer.width, Zoomer.height,
                 Zoomer.screenShotdc,
-                cursor.x, cursor.y,
-                cursor.x + srcx,
-                cursor.y + srcy,
-                SRCCOPY
+                cursor.x - srcx/2, cursor.y - srcy/2,
+                srcx,srcy,SRCCOPY
             );
-
+            BitBlt(
+                current_dc, 0,0,Zoomer.width, Zoomer.height,
+                Zoomer.blankDc,0, 0,SRCCOPY
+            );  
             EndPaint(hwnd, &ps);
             break;
         case WM_DESTROY:
@@ -141,6 +142,24 @@ HDC createScreenShotDc(){
     );
     ReleaseDC(NULL, fullscreensrc);
     return destdc;
+}
+
+void createBlankDc(){
+    HDC blankDc = CreateCompatibleDC(NULL);
+    BITMAPINFO bitmapinfo = {
+        .bmiHeader.biSize = sizeof(BITMAPINFOHEADER),
+        .bmiHeader.biWidth = Zoomer.width,
+        .bmiHeader.biHeight = Zoomer.height,
+        .bmiHeader.biPlanes = 1,
+        .bmiHeader.biCompression = BI_RGB,
+        .bmiHeader.biBitCount = 32,
+    };
+    void *ppvbits = NULL;
+    Zoomer.blankCanvas = CreateDIBSection(
+        blankDc,&bitmapinfo,DIB_RGB_COLORS, &ppvbits, NULL, 0
+    );
+    SelectObject(blankDc, Zoomer.blankCanvas);
+    Zoomer.blankDc = blankDc;
 }
 
 WNDCLASSEX createWindowClass(HINSTANCE hinst){
