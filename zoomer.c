@@ -4,13 +4,24 @@
 #include<stdint.h>
 #include<tchar.h>
 
+typedef enum{
+    ZOOMER_CURSOR, // zoom based on cursor
+    ZOOMER_DEFAULT, // zoom based on Default positio 0,0
+} ZoomerOffet;
+
 typedef struct {
     int width, height;
     HDC screenShotdc;
     HDC blankDc;
     HBITMAP canvas;
     HBITMAP blankCanvas;
+    
+    // zoom state 
     float scale;
+    POINT cursor;
+    int zoomWidth;
+    int zoomHeight;
+    ZoomerOffet cursorOrDefault;
 } ZoomerState;
 
 //global variables
@@ -26,8 +37,15 @@ HWND createWindowFullscreenPopup(HINSTANCE);
 void initZoomer();
 void removeZoomer();
 void createBlankDc();
+void calculateZoomerZoomSize();
+void updateZoomerCursor();
+void resetZoomerZoom();
+void ZoomStretchDc(HDC);
 
-int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hprevinst, LPSTR cmdshow, int ncmdshow){
+
+//MainFunction for GUI
+int WINAPI WinMain(HINSTANCE hinst, 
+    HINSTANCE hprevinst, LPSTR cmdshow, int ncmdshow){
     SetProcessDPIAware();
     initZoomer();
     createBlankDc();
@@ -51,6 +69,7 @@ int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hprevinst, LPSTR cmdshow, int ncmd
     return msg.wParam;
 }
 void initZoomer(){
+    Zoomer.cursorOrDefault = ZOOMER_DEFAULT;
     Zoomer.scale = 1.0f;
     Zoomer.width = GetSystemMetrics(SM_CXSCREEN);
     Zoomer.height = GetSystemMetrics(SM_CYSCREEN);
@@ -63,56 +82,6 @@ void removeZoomer(){
 
     DeleteDC(Zoomer.blankDc);
     DeleteObject(Zoomer.blankCanvas);
-}
-
-LRESULT CALLBACK eventHandler(
-    HWND hwnd, UINT wm, WPARAM wparam, LPARAM lparam
-) {
-    PAINTSTRUCT ps;
-    HDC current_dc;
-    int wheelData;
-    switch(wm){
-        case WM_KEYDOWN:
-            if( wparam == VK_ESCAPE ){
-                PostQuitMessage(0);
-                return 0;
-            }
-            break;
-        case WM_MOUSEWHEEL:
-            wheelData = GET_WHEEL_DELTA_WPARAM(wparam);
-            float addToZoomerScale = (wheelData < 0 ? -0.1 : 0.1);   
-            Zoomer.scale += addToZoomerScale;
-            InvalidateRect(hwnd,NULL,false);
-            break;
-        case WM_PAINT:
-            current_dc = BeginPaint(hwnd, &ps);
-            POINT cursor;
-            GetCursorPos(&cursor);
-            
-            int srcx = (float)Zoomer.width / Zoomer.scale;
-            int srcy =  Zoomer.height * ((float)srcx/(float) Zoomer.width);
-            BitBlt(
-                Zoomer.blankDc, 0,0,Zoomer.width, Zoomer.height,
-                NULL,0, 0,BLACKNESS
-            );  
-            StretchBlt(
-                Zoomer.blankDc,
-                0,0, Zoomer.width, Zoomer.height,
-                Zoomer.screenShotdc,
-                cursor.x - srcx/2, cursor.y - srcy/2,
-                srcx,srcy,SRCCOPY
-            );
-            BitBlt(
-                current_dc, 0,0,Zoomer.width, Zoomer.height,
-                Zoomer.blankDc,0, 0,SRCCOPY
-            );  
-            EndPaint(hwnd, &ps);
-            break;
-        case WM_DESTROY:
-            PostQuitMessage(0);
-            return 0;
-    }
-    return DefWindowProc(hwnd, wm, wparam, lparam);
 }
 
 HDC createScreenShotDc(){
@@ -189,4 +158,93 @@ HWND createWindowFullscreenPopup(HINSTANCE hinst){
         Zoomer.height,
         NULL, NULL, hinst, NULL
     );
+}
+
+LRESULT CALLBACK eventHandler(
+    HWND hwnd, UINT wm, WPARAM wparam, LPARAM lparam
+) {
+    PAINTSTRUCT ps;
+    HDC current_dc;
+    int wheelData;
+    switch(wm){
+        case WM_KEYDOWN:
+            if( wparam == VK_ESCAPE ){
+                PostQuitMessage(0);
+                return 0;
+            }
+            // reset to Zoomer state 
+            else if(wparam == 'R'){
+                resetZoomerZoom();
+                InvalidateRect(hwnd, NULL, false);
+            }
+            break;
+        case WM_MOUSEWHEEL:
+            wheelData = GET_WHEEL_DELTA_WPARAM(wparam);
+            
+            float addToZoomerScale = (wheelData < 0 ? -0.1 : 0.1);   
+            Zoomer.scale += addToZoomerScale;
+            Zoomer.cursorOrDefault = ZOOMER_CURSOR;
+            InvalidateRect(hwnd,NULL,false);
+            
+            break;
+        case WM_PAINT:
+            current_dc = BeginPaint(hwnd, &ps);
+            
+            updateZoomerCursor();
+            calculateZoomerZoomSize();
+
+            ZoomStretchDc(current_dc);
+
+            EndPaint(hwnd, &ps);
+            break;
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
+    }
+    return DefWindowProc(hwnd, wm, wparam, lparam);
+}
+
+void ZoomStretchDc(HDC current_dc){
+    BitBlt(
+        Zoomer.blankDc, 0,0,Zoomer.width, Zoomer.height,
+        NULL,0, 0,BLACKNESS
+    );  
+
+    int posx = 0, posy = 0;
+
+    if (Zoomer.cursorOrDefault == ZOOMER_CURSOR){
+        posx = Zoomer.cursor.x - Zoomer.zoomWidth /2;
+        posy = Zoomer.cursor.y - Zoomer.zoomHeight/2;
+    }
+    
+    StretchBlt(
+        Zoomer.blankDc,
+        0,0, Zoomer.width, Zoomer.height,
+        Zoomer.screenShotdc,
+        posx, posy,Zoomer.zoomWidth, Zoomer.zoomHeight,SRCCOPY
+    );
+    BitBlt(
+        current_dc, 0,0,Zoomer.width, Zoomer.height,
+        Zoomer.blankDc,0, 0,SRCCOPY
+    );
+}
+
+void resetZoomerZoom(){
+    Zoomer.scale = 1.0f;
+    Zoomer.cursorOrDefault = ZOOMER_DEFAULT;
+    Zoomer.zoomWidth = Zoomer.width;
+    Zoomer.zoomHeight = Zoomer.height;
+}
+
+void calculateZoomerZoomSize(){
+    Zoomer.zoomWidth  = 
+        (float)Zoomer.width / Zoomer.scale;
+    Zoomer.zoomHeight = 
+        Zoomer.height * ((float)Zoomer.zoomWidth/(float) Zoomer.width);
+}
+
+void updateZoomerCursor(){
+    POINT cursor;
+    GetCursorPos(&cursor); 
+    Zoomer.cursor = cursor;
 }

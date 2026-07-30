@@ -26,4 +26,4 @@ gcc zoomer.c -o zoomer -luser32 -lgdi32
 | Hot Key    |     Function        |
 |------------|:-------------------:|
 | ESC        | Exits out of the app|
-
+| r          | Reset zoom to 1x    |
