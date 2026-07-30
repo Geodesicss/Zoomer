@@ -62,7 +62,7 @@ int WINAPI WinMain(HINSTANCE hinst,
     RegisterClassEx(&wc);
 
     MSG msg;
-    
+
     HWND current_window = createWindowFullscreenPopup(hinst);
     
     ShowWindow(current_window, ncmdshow);
@@ -72,7 +72,7 @@ int WINAPI WinMain(HINSTANCE hinst,
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-    
+
     removeZoomer();
     UnregisterClass(classname, hinst);
     return msg.wParam;
@@ -196,8 +196,8 @@ LRESULT CALLBACK eventHandler(
                 curry = (int)HIWORD(lparam);
                 dx = currx - mouseDrag.x; dy = curry - mouseDrag.y;
 
-                Zoomer.posx -= dx;
-                Zoomer.posy -= dy;
+                Zoomer.posx -= (int)(dx * 1.0) * ((float)Zoomer.zoomWidth / (float)Zoomer.width);
+                Zoomer.posy -= (int)(dy * 1.0) * ((float)Zoomer.zoomHeight /(float) Zoomer.height);
 
                 mouseDrag.x = currx;
                 mouseDrag.y = curry;
