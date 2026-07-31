@@ -2,6 +2,8 @@
 
 A simple magnifier app that can zoom into the current window.
 
+![](./resources/Zoomer%20gif.gif)
+
 ### Features
 * **WIN32 GDI** uses direct device context handle manipulations, no third party api for fast and hardware accelerated native rendering
 * **DPI aware** uses native screen resolution metrics
@@ -23,7 +25,8 @@ gcc zoomer.c -o zoomer -luser32 -lgdi32
 ### Key Bindings
 
 
-| Hot Key    |     Function        |
-|------------|:-------------------:|
-| ESC        | Exits out of the app|
-| r          | Reset zoom to 1x    |
+| Hot Key             |     Function          |
+|---------------------|:---------------------:|
+| ESC                 | Exits out of the app  |
+| r                   | Reset zoom to 1x      |
+| LClick(hold) + drag | pan screenshot        |

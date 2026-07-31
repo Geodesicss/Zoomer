@@ -78,6 +78,7 @@ int WINAPI WinMain(HINSTANCE hinst,
     return msg.wParam;
 }
 void initZoomer(){
+
     Zoomer.loop = true;
     Zoomer.cursorOrDefault = ZOOMER_DEFAULT;
     Zoomer.scale = 1.0f;
@@ -196,8 +197,8 @@ LRESULT CALLBACK eventHandler(
                 curry = (int)HIWORD(lparam);
                 dx = currx - mouseDrag.x; dy = curry - mouseDrag.y;
 
-                Zoomer.posx -= (int)(dx * 1.0) * ((float)Zoomer.zoomWidth / (float)Zoomer.width);
-                Zoomer.posy -= (int)(dy * 1.0) * ((float)Zoomer.zoomHeight /(float) Zoomer.height);
+                Zoomer.posx -= (int)(dx * 1.0) * ((float)Zoomer.zoomWidth  / (float)Zoomer.width);
+                Zoomer.posy -= (int)(dy * 1.0) * ((float)Zoomer.zoomHeight / (float) Zoomer.height);
 
                 mouseDrag.x = currx;
                 mouseDrag.y = curry;
@@ -237,17 +238,12 @@ LRESULT CALLBACK eventHandler(
 
             Zoomer.posx += (int)(percentX * (oldZoomWidth - Zoomer.zoomWidth));
             Zoomer.posy += (int)(percentY * (oldZoomHeight - Zoomer.zoomHeight));
-            // Zoomer.posx = Zoomer.cursor.x - Zoomer.zoomWidth /2;
-            // Zoomer.posy = Zoomer.cursor.y - Zoomer.zoomHeight/2;
 
             InvalidateRect(hwnd,NULL,false);
             
             return 0;
         case WM_PAINT:
             current_dc = BeginPaint(hwnd, &ps);
-            
-            // updateZoomerCursor();
-            // calculateZoomerZoomSize();
 
             ZoomStretchDc(current_dc);
 
@@ -269,20 +265,6 @@ void ZoomStretchDc(HDC current_dc){
     );  
 
     int posx = 0, posy = 0;
-
-    // if (Zoomer.cursorOrDefault == ZOOMER_CURSOR){
-    //     posx = Zoomer.cursor.x - Zoomer.zoomWidth /2;
-    //     posy = Zoomer.cursor.y - Zoomer.zoomHeight/2;
-
-    //     Zoomer.posx = posx;
-    //     Zoomer.posy = posy;
-    // }else if(mouseDrag.isDrag){
-    //     printf("mouse drag:::  ");
-    //     // printf("dx %d, dy %d\n",mouseDrag.x, mouseDrag.y);
-    //     Zoomer.posx += mouseDrag.x;
-    //     Zoomer.posy += mouseDrag.y;
-    //     printf("dx %d, dy %d\n",Zoomer.posx, Zoomer.posy);
-    // }
     
     StretchBlt(
         Zoomer.blankDc,
@@ -297,6 +279,8 @@ void ZoomStretchDc(HDC current_dc){
 }
 
 void resetZoomerZoom(){
+    Zoomer.posx = 0;
+    Zoomer.posy = 0;
     Zoomer.scale = 1.0f;
     Zoomer.cursorOrDefault = ZOOMER_DEFAULT;
     Zoomer.zoomWidth = Zoomer.width;
